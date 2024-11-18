@@ -297,6 +297,9 @@
 #define CSR_SIP			0x144
 #define CSR_SATP		0x180
 
+/* Supervisor Address Midgard Translation */
+#define CSR_SAMT		0x5a0
+
 #define CSR_STIMECMP		0x14D
 #define CSR_STIMECMPH		0x15D
 
