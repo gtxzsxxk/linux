@@ -177,3 +177,8 @@ sphinx_*/
 
 # Rust analyzer configuration
 /rust-project.json
+
+qemu_cache_plugin_log
+tlb_fill_hit.log
+vmlinux.dump
+vmlinux1
