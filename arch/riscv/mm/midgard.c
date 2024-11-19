@@ -3,15 +3,18 @@
 #include <asm/page.h>
 #include <asm/pgtable.h>
 #include <linux/panic.h>
-#include <stdint.h>
 
+#define MIDGARD_BRUTE_NODES		4096
 /* 暂且暴力分配 */
-static struct midgard_node node_pool[4096] __page_aligned_bss;
+static struct midgard_node node_pool[MIDGARD_BRUTE_NODES] __page_aligned_bss;
 static int node_alloc_counter = 0;
 
 static struct midgard_node* midgard_root = NULL;
 
 static struct midgard_node *alloc_node(void) {
+	if(node_alloc_counter == MIDGARD_BRUTE_NODES) {
+		panic("No enough space for midgard nodes");
+	}
 	return &node_pool[node_alloc_counter++];
 }
 
@@ -129,7 +132,7 @@ static struct midgard_node *search(struct midgard_node *root, uintptr_t va_base,
 
 uintptr_t midgard_insert_vma(uintptr_t va_base, phys_addr_t size, uint8_t prot) {
 	static uint64_t counter = 1;
-	uintptr_t midgard_addr = 0xaa00000000000000 | ((counter++) << 12);
+	uintptr_t midgard_addr = 0xaf10000000000000 | ((counter++) << 12) | (va_base & 0xfff);
 	int pos = -1;
 
 	struct midgard_node *lookup = search(midgard_root, va_base, &pos);
