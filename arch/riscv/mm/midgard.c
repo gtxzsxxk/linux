@@ -1,9 +1,12 @@
 #include <asm/midgard.h>
+#include <asm/csr.h>
+#include <asm/page.h>
+#include <asm/pgtable.h>
 #include <linux/panic.h>
 #include <stdint.h>
 
 /* 暂且暴力分配 */
-static struct midgard_node node_pool[4096];
+static struct midgard_node node_pool[4096] __page_aligned_bss;
 static int node_alloc_counter = 0;
 
 static struct midgard_node* midgard_root = NULL;
@@ -148,4 +151,12 @@ uintptr_t midgard_insert_vma(uintptr_t va_base, phys_addr_t size, uint8_t prot) 
 	insert(&midgard_root, &key);
 
 	return midgard_addr;
+}
+
+void midgard_enable(void) {
+	csr_write(CSR_SAMT, __pa_symbol(midgard_root) | 1);
+}
+
+void midgard_disable(void) {
+	csr_write(CSR_SAMT, __pa_symbol(midgard_root) & (~((uint64_t)1)));
 }
