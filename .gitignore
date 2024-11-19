@@ -182,3 +182,6 @@ qemu_cache_plugin_log
 tlb_fill_hit.log
 vmlinux.dump
 vmlinux1
+Image.bak
+vmlinux.bak
+vmlinux.dump.bak
