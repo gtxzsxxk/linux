@@ -1,4 +1,5 @@
 #include <asm/midgard.h>
+#include <linux/panic.h>
 #include <stdint.h>
 
 /* 暂且暴力分配 */
@@ -100,15 +101,45 @@ static void insert(struct midgard_node **root, struct midgard_key *key) {
 	}
 }
 
+static struct midgard_node *search(struct midgard_node *root, uintptr_t va_base, int *pos) {
+	int i = 0;
+
+	if (!root) {
+		return NULL;
+	}
+
+	while (i < root->key_cnt && va_base > root->keys[i].base) {
+		i++;
+	}
+
+	if(i < root->key_cnt && va_base == root->keys[i].base) {
+		*pos = i;
+		return root;
+	}
+
+	if(root->is_leaf) {
+		return NULL;
+	}
+
+	return search(root->children[i], va_base, pos);
+}
+
 uintptr_t midgard_insert_vma(uintptr_t va_base, phys_addr_t size, uint8_t prot) {
-    static uint64_t counter = 1;
-    uintptr_t midgard_addr = 0xaa00000000000000 | ((counter++) << 12);
-    struct midgard_key key = {
-        .base = va_base,
-        .bound = va_base + size,
-        .offset = midgard_addr - va_base,
-        .prot = prot,
-    };
+	static uint64_t counter = 1;
+	uintptr_t midgard_addr = 0xaa00000000000000 | ((counter++) << 12);
+	int pos = -1;
+
+	struct midgard_node *lookup = search(midgard_root, va_base, &pos);
+	if(lookup) {
+		panic("Existing midgard va address!");
+	}
+
+	struct midgard_key key = {
+		.base = va_base,
+		.bound = va_base + size,
+		.offset = midgard_addr - va_base,
+		.prot = prot,
+	};
 
 	if (midgard_root == NULL) {
 		midgard_root = create_node(1);
