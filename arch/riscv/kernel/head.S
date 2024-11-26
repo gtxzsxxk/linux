@@ -73,24 +73,24 @@ pe_head_start:
 	.global relocate_enable_mmu
 relocate_enable_mmu:
 	/* Relocate return address */
-	la a1, kernel_map
-	XIP_FIXUP_OFFSET a1
-	REG_L a1, KERNEL_MAP_VIRT_ADDR(a1)
+	la a7, kernel_map
+	XIP_FIXUP_OFFSET a7
+	REG_L a7, KERNEL_MAP_VIRT_ADDR(a7)
 	la a2, _start
-	sub a1, a1, a2
-	add ra, ra, a1
+	sub a7, a7, a2
+	add ra, ra, a7
 
 	/* Point stvec to virtual address of intruction after satp write */
 	la a2, 1f
-	add a2, a2, a1
+	add a2, a2, a7
 	csrw CSR_TVEC, a2
 
 	/* Compute satp for kernel page tables, but don't load it yet */
 	srl a2, a0, PAGE_SHIFT
-	la a1, satp_mode
-	XIP_FIXUP_OFFSET a1
-	REG_L a1, 0(a1)
-	or a2, a2, a1
+	la a7, satp_mode
+	XIP_FIXUP_OFFSET a7
+	REG_L a7, 0(a7)
+	or a2, a2, a7
 
 	/*
 	 * Load trampoline page directory, which will cause us to trap to
@@ -101,7 +101,10 @@ relocate_enable_mmu:
 	la a0, trampoline_pg_dir
 	XIP_FIXUP_OFFSET a0
 	srl a0, a0, PAGE_SHIFT
-	or a0, a0, a1
+	or a0, a0, a7
+	la a6, trampoline_midgard_root
+	ld a6, 0(a6)
+	csrw CSR_SAMT, a6
 	sfence.vma
 	csrw CSR_SATP, a0
 .align 2
@@ -119,6 +122,7 @@ relocate_enable_mmu:
 	 * the first superpage.  Fetching the fence is guaranteed to work
 	 * because that first superpage is translated the same way.
 	 */
+	csrw CSR_SAMT, a1 /* 使用 midgard 代理 */
 	csrw CSR_SATP, a2
 	sfence.vma
 
@@ -312,6 +316,8 @@ SYM_CODE_START(_start_kernel)
 #ifdef CONFIG_MMU
 	la a0, early_pg_dir
 	XIP_FIXUP_OFFSET a0
+	la a1, early_midgard_root
+	ld a1, 0(a1)
 	call relocate_enable_mmu
 #endif /* CONFIG_MMU */
 
