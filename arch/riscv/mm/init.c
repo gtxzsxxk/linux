@@ -167,9 +167,6 @@ static void print_vm_layout(void) { }
 void __init mem_init(void)
 {
 	bool swiotlb = max_pfn > PFN_DOWN(dma32_phys_limit);
-#ifdef CONFIG_FLATMEM
-	BUG_ON(!mem_map);
-#endif /* CONFIG_FLATMEM */
 
 	if (IS_ENABLED(CONFIG_DMA_BOUNCE_UNALIGNED_KMALLOC) && !swiotlb &&
 	    dma_cache_alignment != 1) {
@@ -394,8 +391,6 @@ static pmd_t *__meminit get_pmd_virt_late(phys_addr_t pa)
 
 static phys_addr_t __init alloc_pmd_early(uintptr_t va)
 {
-	BUG_ON((va - kernel_map.virt_addr) >> PUD_SHIFT);
-
 	return (uintptr_t)early_pmd;
 }
 
@@ -408,7 +403,6 @@ static phys_addr_t __meminit alloc_pmd_late(uintptr_t va)
 {
 	struct ptdesc *ptdesc = pagetable_alloc(GFP_KERNEL & ~__GFP_HIGHMEM, 0);
 
-	BUG_ON(!ptdesc || !pagetable_pmd_ctor(ptdesc));
 	return __pa((pmd_t *)ptdesc_address(ptdesc));
 }
 
@@ -495,9 +489,6 @@ static pud_t *__meminit get_pud_virt_late(phys_addr_t pa)
 
 static phys_addr_t __init alloc_pud_early(uintptr_t va)
 {
-	/* Only one PUD is available for early mapping */
-	BUG_ON((va - kernel_map.virt_addr) >> PGDIR_SHIFT);
-
 	return (uintptr_t)early_pud;
 }
 
@@ -533,9 +524,6 @@ static p4d_t *__meminit get_p4d_virt_late(phys_addr_t pa)
 
 static phys_addr_t __init alloc_p4d_early(uintptr_t va)
 {
-	/* Only one P4D is available for early mapping */
-	BUG_ON((va - kernel_map.virt_addr) >> PGDIR_SHIFT);
-
 	return (uintptr_t)early_p4d;
 }
 
@@ -683,9 +671,7 @@ void __set_fixmap(enum fixed_addresses idx, phys_addr_t phys, pgprot_t prot)
 	unsigned long addr = __fix_to_virt(idx);
 	pte_t *ptep;
 
-	BUG_ON(idx <= FIX_HOLE || idx >= __end_of_fixed_addresses);
-
-	uintptr_t ma = midgard_insert_vma(addr, 4096, prot.pgprot);
+	uintptr_t ma = midgard_insert_vma(&swapper_midgard_root, addr, 4096, prot.pgprot);
 
 	/* Setup fixmap PGD */
 	create_pgd_mapping(swapper_pg_dir, ma,
@@ -745,7 +731,6 @@ static phys_addr_t __meminit alloc_pte_late(uintptr_t va)
 {
 	struct ptdesc *ptdesc = pagetable_alloc(GFP_KERNEL & ~__GFP_HIGHMEM, 0);
 
-	BUG_ON(!ptdesc || !pagetable_pte_ctor(ptdesc));
 	return __pa((pte_t *)ptdesc_address(ptdesc));
 }
 
@@ -1185,29 +1170,6 @@ asmlinkage void __init setup_vm(uintptr_t dtb_pa)
 
 	memory_limit = KERN_VIRT_SIZE;
 
-	/* Sanity check alignment and size */
-	BUG_ON((PAGE_OFFSET % PGDIR_SIZE) != 0);
-	BUG_ON((kernel_map.phys_addr % PMD_SIZE) != 0);
-
-#ifdef CONFIG_64BIT
-	/*
-	 * The last 4K bytes of the addressable memory can not be mapped because
-	 * of IS_ERR_VALUE macro.
-	 */
-	BUG_ON((kernel_map.virt_addr + kernel_map.size) > ADDRESS_SPACE_END - SZ_4K);
-#endif
-
-#ifdef CONFIG_RELOCATABLE
-	/*
-	 * Early page table uses only one PUD, which makes it possible
-	 * to map PUD_SIZE aligned on PUD_SIZE: if the relocation offset
-	 * makes the kernel cross over a PUD_SIZE boundary, raise a bug
-	 * since a part of the kernel would not get mapped.
-	 */
-	BUG_ON(PUD_SIZE - (kernel_map.virt_addr & (PUD_SIZE - 1)) < kernel_map.size);
-	relocate_kernel();
-#endif
-
 	apply_early_boot_alternatives();
 	pt_ops_set_early();
 
@@ -1235,13 +1197,6 @@ asmlinkage void __init setup_vm(uintptr_t dtb_pa)
 
 	/* Setup early mapping for FDT early scan */
 	create_fdt_early_page_table(__fix_to_virt(FIX_FDT), dtb_pa);
-
-	/*
-	 * Bootime fixmap only can handle PMD_SIZE mapping. Thus, boot-ioremap
-	 * range can not span multiple pmds.
-	 */
-	BUG_ON((__fix_to_virt(FIX_BTMAP_BEGIN) >> PMD_SHIFT)
-		     != (__fix_to_virt(FIX_BTMAP_END) >> PMD_SHIFT));
 
 #ifndef __PAGETABLE_PMD_FOLDED
 	/*
@@ -1300,19 +1255,6 @@ static void __init create_linear_mapping_page_table(void)
 	/* Isolate kernel text and rodata so they don't get mapped with a PUD */
 	memblock_mark_nomap(ktext_start,  ktext_size);
 	memblock_mark_nomap(krodata_start, krodata_size);
-#endif
-
-#ifdef CONFIG_KFENCE
-	/*
-	 *  kfence pool must be backed by PAGE_SIZE mappings, so allocate it
-	 *  before we setup the linear mapping so that we avoid using hugepages
-	 *  for this region.
-	 */
-	kfence_pool = memblock_phys_alloc(KFENCE_POOL_SIZE, PAGE_SIZE);
-	BUG_ON(!kfence_pool);
-
-	memblock_mark_nomap(kfence_pool, KFENCE_POOL_SIZE);
-	__kfence_pool = __va(kfence_pool);
 #endif
 
 	/* Map all memory banks in the linear mapping */
