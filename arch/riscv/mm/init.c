@@ -309,10 +309,15 @@ static void __init setup_bootmem(void)
 struct pt_alloc_ops pt_ops __meminitdata;
 
 pgd_t swapper_pg_dir[PTRS_PER_PGD] __page_aligned_bss;
+struct midgard_node* swapper_midgard_root = NULL;
+
 pgd_t trampoline_pg_dir[PTRS_PER_PGD] __page_aligned_bss;
+struct midgard_node* trampoline_midgard_root = NULL;
+
 static pte_t fixmap_pte[PTRS_PER_PTE] __page_aligned_bss;
 
 pgd_t early_pg_dir[PTRS_PER_PGD] __initdata __aligned(PAGE_SIZE);
+struct midgard_node* early_midgard_root __initdata = NULL;
 
 #ifdef CONFIG_XIP_KERNEL
 #define pt_ops			(*(struct pt_alloc_ops *)XIP_FIXUP(&pt_ops))
@@ -948,79 +953,19 @@ retry:
 #error "setup_vm() is called from head.S before relocate so it should not use absolute addressing."
 #endif
 
-#ifdef CONFIG_RELOCATABLE
-extern unsigned long __rela_dyn_start, __rela_dyn_end;
-
-static void __init relocate_kernel(void)
-{
-	Elf64_Rela *rela = (Elf64_Rela *)&__rela_dyn_start;
-	/*
-	 * This holds the offset between the linked virtual address and the
-	 * relocated virtual address.
-	 */
-	uintptr_t reloc_offset = kernel_map.virt_addr - KERNEL_LINK_ADDR;
-	/*
-	 * This holds the offset between kernel linked virtual address and
-	 * physical address.
-	 */
-	uintptr_t va_kernel_link_pa_offset = KERNEL_LINK_ADDR - kernel_map.phys_addr;
-
-	for ( ; rela < (Elf64_Rela *)&__rela_dyn_end; rela++) {
-		Elf64_Addr addr = (rela->r_offset - va_kernel_link_pa_offset);
-		Elf64_Addr relocated_addr = rela->r_addend;
-
-		if (rela->r_info != R_RISCV_RELATIVE)
-			continue;
-
-		/*
-		 * Make sure to not relocate vdso symbols like rt_sigreturn
-		 * which are linked from the address 0 in vmlinux since
-		 * vdso symbol addresses are actually used as an offset from
-		 * mm->context.vdso in VDSO_OFFSET macro.
-		 */
-		if (relocated_addr >= KERNEL_LINK_ADDR)
-			relocated_addr += reloc_offset;
-
-		*(Elf64_Addr *)addr = relocated_addr;
-	}
-}
-#endif /* CONFIG_RELOCATABLE */
-
-#ifdef CONFIG_XIP_KERNEL
-static void __init create_kernel_page_table(pgd_t *pgdir,
-					    __always_unused bool early)
-{
-	uintptr_t va, start_va, end_va;
-
-	/* Map the flash resident part */
-	end_va = kernel_map.virt_addr + kernel_map.xiprom_sz;
-	for (va = kernel_map.virt_addr; va < end_va; va += PMD_SIZE)
-		create_pgd_mapping(pgdir, va,
-				   kernel_map.xiprom + (va - kernel_map.virt_addr),
-				   PMD_SIZE, PAGE_KERNEL_EXEC);
-
-	/* Map the data in RAM */
-	start_va = kernel_map.virt_addr + (uintptr_t)&_sdata - (uintptr_t)&_start;
-	end_va = kernel_map.virt_addr + kernel_map.size;
-	for (va = start_va; va < end_va; va += PMD_SIZE)
-		create_pgd_mapping(pgdir, va,
-				   kernel_map.phys_addr + (va - start_va),
-				   PMD_SIZE, PAGE_KERNEL);
-}
-#else
-static void __init create_kernel_page_table(pgd_t *pgdir, bool early)
+static void __init create_kernel_page_table(pgd_t *pgdir, struct midgard_node **root, bool early)
 {
 	uintptr_t va, end_va;
-
+	uintptr_t ma = midgard_insert_vma(root, kernel_map.virt_addr, kernel_map.size, PAGE_KERNEL_EXEC.pgprot);
 	end_va = kernel_map.virt_addr + kernel_map.size;
-	for (va = kernel_map.virt_addr; va < end_va; va += PMD_SIZE)
-		create_pgd_mapping(pgdir, va,
+	for (va = kernel_map.virt_addr; va < end_va; va += PMD_SIZE, ma += PMD_SIZE) {
+		create_pgd_mapping(pgdir, ma,
 				   kernel_map.phys_addr + (va - kernel_map.virt_addr),
 				   PMD_SIZE,
 				   early ?
 					PAGE_KERNEL_EXEC : pgprot_from_va(va));
+	}
 }
-#endif
 
 /*
  * Setup a 4MB mapping that encompasses the device tree: for 64-bit kernel,
@@ -1036,16 +981,24 @@ static void __init create_fdt_early_page_table(uintptr_t fix_fdt_va,
 	/* Make sure the fdt fixmap address is always aligned on PMD size */
 	BUILD_BUG_ON(FIX_FDT % (PMD_SIZE / PAGE_SIZE));
 
-	/* In 32-bit only, the fdt lies in its own PGD */
-	if (!IS_ENABLED(CONFIG_64BIT)) {
-		create_pgd_mapping(early_pg_dir, fix_fdt_va,
-				   pa, MAX_FDT_SIZE, PAGE_KERNEL);
-	} else {
-		create_pmd_mapping(fixmap_pmd, fix_fdt_va,
-				   pa, PMD_SIZE, PAGE_KERNEL);
-		create_pmd_mapping(fixmap_pmd, fix_fdt_va + PMD_SIZE,
-				   pa + PMD_SIZE, PMD_SIZE, PAGE_KERNEL);
-	}
+	uintptr_t ma = midgard_insert_vma(&early_midgard_root, fix_fdt_va, 2 * PMD_SIZE, PAGE_KERNEL.pgprot);
+	/* Setup early PGD for fixmap */
+	create_pgd_mapping(early_pg_dir, ma,
+			   fixmap_pgd_next, PGDIR_SIZE, PAGE_TABLE);
+
+	/* Setup fixmap P4D and PUD */
+	if (pgtable_l5_enabled)
+		create_p4d_mapping(fixmap_p4d, ma,
+				   (uintptr_t)fixmap_pud, P4D_SIZE, PAGE_TABLE);
+	/* Setup fixmap PUD and PMD */
+	if (pgtable_l4_enabled)
+		create_pud_mapping(fixmap_pud, ma,
+				   (uintptr_t)fixmap_pmd, PUD_SIZE, PAGE_TABLE);
+
+	create_pmd_mapping(fixmap_pmd, ma,
+				pa, PMD_SIZE, PAGE_KERNEL);
+	create_pmd_mapping(fixmap_pmd, ma + PMD_SIZE,
+				pa + PMD_SIZE, PMD_SIZE, PAGE_KERNEL);
 
 	dtb_early_va = (void *)fix_fdt_va + (dtb_pa & (PMD_SIZE - 1));
 #else
@@ -1174,18 +1127,18 @@ asmlinkage void __init setup_vm(uintptr_t dtb_pa)
 	pt_ops_set_early();
 
 	/* Setup trampoline PGD and PMD */
-
-
-	create_pgd_mapping(trampoline_pg_dir, kernel_map.virt_addr,
+	uintptr_t trampoline_ma = midgard_insert_vma(&trampoline_midgard_root, kernel_map.virt_addr,
+			PMD_SIZE, PAGE_KERNEL_EXEC.pgprot);
+	create_pgd_mapping(trampoline_pg_dir, trampoline_ma,
 			   trampoline_pgd_next, PGDIR_SIZE, PAGE_TABLE);
 	if (pgtable_l5_enabled)
-		create_p4d_mapping(trampoline_p4d, kernel_map.virt_addr,
+		create_p4d_mapping(trampoline_p4d, trampoline_ma,
 				   (uintptr_t)trampoline_pud, P4D_SIZE, PAGE_TABLE);
 	if (pgtable_l4_enabled)
-		create_pud_mapping(trampoline_pud, kernel_map.virt_addr,
+		create_pud_mapping(trampoline_pud, trampoline_ma,
 				   (uintptr_t)trampoline_pmd, PUD_SIZE, PAGE_TABLE);
 
-	create_pmd_mapping(trampoline_pmd, kernel_map.virt_addr,
+	create_pmd_mapping(trampoline_pmd, trampoline_ma,
 			   kernel_map.phys_addr, PMD_SIZE, PAGE_KERNEL_EXEC);
 
 	/*
@@ -1193,7 +1146,7 @@ asmlinkage void __init setup_vm(uintptr_t dtb_pa)
 	 * us to reach paging_init(). We map all memory banks later
 	 * in setup_vm_final() below.
 	 */
-	create_kernel_page_table(early_pg_dir, true);
+	create_kernel_page_table(early_pg_dir, &early_midgard_root, true);
 
 	/* Setup early mapping for FDT early scan */
 	create_fdt_early_page_table(__fix_to_virt(FIX_FDT), dtb_pa);
@@ -1305,7 +1258,7 @@ static void __init setup_vm_final(void)
 
 	/* Map the kernel */
 	if (IS_ENABLED(CONFIG_64BIT))
-		create_kernel_page_table(swapper_pg_dir, false);
+		create_kernel_page_table(swapper_pg_dir, &swapper_midgard_root, false);
 
 #ifdef CONFIG_KASAN
 	kasan_swapper_init();
