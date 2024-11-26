@@ -185,3 +185,6 @@ vmlinux1
 Image.bak
 vmlinux.bak
 vmlinux.dump.bak
+log
+qemu_exec.log
+qemu.breakpoints
