@@ -20,9 +20,9 @@ struct midgard_node {
 };
 
 /* return the midgard address of the input virtual address */
-uintptr_t midgard_insert_vma(uintptr_t va_base, phys_addr_t size, uint8_t prot);
+uintptr_t midgard_insert_vma(struct midgard_node **root, uintptr_t va_base, phys_addr_t size, uint8_t prot);
 
-void midgard_enable(void);
+void midgard_enable(struct midgard_node *root);
 
 void midgard_disable(void);
 

@@ -9,8 +9,6 @@
 static struct midgard_node node_pool[MIDGARD_BRUTE_NODES] __page_aligned_bss;
 static int node_alloc_counter = 0;
 
-static struct midgard_node* midgard_root = NULL;
-
 static struct midgard_node *alloc_node(void) {
 	if(node_alloc_counter == MIDGARD_BRUTE_NODES) {
 		panic("No enough space for midgard nodes");
@@ -114,11 +112,11 @@ static struct midgard_node *search(struct midgard_node *root, uintptr_t va_base,
 		return NULL;
 	}
 
-	while (i < root->key_cnt && va_base > root->keys[i].base) {
+	while (i < root->key_cnt && !(va_base >= root->keys[i].base && va_base < root->keys[i].bound)) {
 		i++;
 	}
 
-	if(i < root->key_cnt && va_base == root->keys[i].base) {
+	if(i < root->key_cnt && va_base >= root->keys[i].base && va_base < root->keys[i].bound) {
 		*pos = i;
 		return root;
 	}
@@ -130,12 +128,12 @@ static struct midgard_node *search(struct midgard_node *root, uintptr_t va_base,
 	return search(root->children[i], va_base, pos);
 }
 
-uintptr_t midgard_insert_vma(uintptr_t va_base, phys_addr_t size, uint8_t prot) {
+uintptr_t midgard_insert_vma(struct midgard_node **root, uintptr_t va_base, phys_addr_t size, uint8_t prot) {
 	static uint64_t counter = 1;
-	uintptr_t midgard_addr = 0xaf10000000000000 | ((counter++) << 12) | (va_base & 0xfff);
+	uintptr_t midgard_addr = 0xff00000000000000 | ((counter++) << (12 * 4)) | (va_base & 0xfff);
 	int pos = -1;
 
-	struct midgard_node *lookup = search(midgard_root, va_base, &pos);
+	struct midgard_node *lookup = search(*root, va_base, &pos);
 	if(lookup) {
 		panic("Existing midgard va address!");
 	}
@@ -147,19 +145,20 @@ uintptr_t midgard_insert_vma(uintptr_t va_base, phys_addr_t size, uint8_t prot) 
 		.prot = prot,
 	};
 
-	if (midgard_root == NULL) {
-		midgard_root = create_node(1);
+	if (*root == NULL) {
+		/* TODO: 区分early(__init) 和late */
+		*root = create_node(1);
 	}
 
-	insert(&midgard_root, &key);
+	insert(root, &key);
 
 	return midgard_addr;
 }
 
-void midgard_enable(void) {
-	csr_write(CSR_SAMT, __pa_symbol(midgard_root) | 1);
+void midgard_enable(struct midgard_node *root) {
+	csr_write(CSR_SAMT, __pa_symbol(root) | 1);
 }
 
 void midgard_disable(void) {
-	csr_write(CSR_SAMT, __pa_symbol(midgard_root) & (~((uint64_t)1)));
+	csr_write(CSR_SAMT, 0);
 }
