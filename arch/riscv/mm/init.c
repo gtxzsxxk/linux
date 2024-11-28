@@ -449,33 +449,6 @@ static void __meminit create_pmd_mapping(pmd_t *pmdp,
 	create_pte_mapping(ptep, va, pa, sz, prot);
 }
 
-static void create_pmd_mapping_late(pmd_t *pmdp,
-					 uintptr_t va, phys_addr_t pa,
-					 phys_addr_t sz, pgprot_t prot)
-{
-	pte_t *ptep;
-	phys_addr_t pte_phys;
-	uintptr_t pmd_idx = pmd_index(va);
-
-	if (sz == PMD_SIZE) {
-		if (pmd_none(pmdp[pmd_idx]))
-			pmdp[pmd_idx] = pfn_pmd(PFN_DOWN(pa), prot);
-		return;
-	}
-
-	if (pmd_none(pmdp[pmd_idx])) {
-		pte_phys = pt_ops.alloc_pte(va);
-		pmdp[pmd_idx] = pfn_pmd(PFN_DOWN(pte_phys), PAGE_TABLE);
-		ptep = pt_ops.get_pte_virt(pte_phys);
-		memset(ptep, 0, PAGE_SIZE);
-	} else {
-		pte_phys = PFN_PHYS(_pmd_pfn(pmdp[pmd_idx]));
-		ptep = pt_ops.get_pte_virt(pte_phys);
-	}
-
-	create_pte_mapping(ptep, va, pa, sz, prot);
-}
-
 static pud_t *__init get_pud_virt_early(phys_addr_t pa)
 {
 	return (pud_t *)((uintptr_t)pa);
@@ -572,59 +545,7 @@ static void __meminit create_pud_mapping(pud_t *pudp, uintptr_t va, phys_addr_t 
 	create_pmd_mapping(nextp, va, pa, sz, prot);
 }
 
-static void create_pud_mapping_late(pud_t *pudp, uintptr_t va, phys_addr_t pa, phys_addr_t sz,
-					 pgprot_t prot)
-{
-	pmd_t *nextp;
-	phys_addr_t next_phys;
-	uintptr_t pud_index = pud_index(va);
-
-	if (sz == PUD_SIZE) {
-		if (pud_val(pudp[pud_index]) == 0)
-			pudp[pud_index] = pfn_pud(PFN_DOWN(pa), prot);
-		return;
-	}
-
-	if (pud_val(pudp[pud_index]) == 0) {
-		next_phys = pt_ops.alloc_pmd(va);
-		pudp[pud_index] = pfn_pud(PFN_DOWN(next_phys), PAGE_TABLE);
-		nextp = pt_ops.get_pmd_virt(next_phys);
-		memset(nextp, 0, PAGE_SIZE);
-	} else {
-		next_phys = PFN_PHYS(_pud_pfn(pudp[pud_index]));
-		nextp = pt_ops.get_pmd_virt(next_phys);
-	}
-
-	create_pmd_mapping(nextp, va, pa, sz, prot);
-}
-
 static void __meminit create_p4d_mapping(p4d_t *p4dp, uintptr_t va, phys_addr_t pa, phys_addr_t sz,
-					 pgprot_t prot)
-{
-	pud_t *nextp;
-	phys_addr_t next_phys;
-	uintptr_t p4d_index = p4d_index(va);
-
-	if (sz == P4D_SIZE) {
-		if (p4d_val(p4dp[p4d_index]) == 0)
-			p4dp[p4d_index] = pfn_p4d(PFN_DOWN(pa), prot);
-		return;
-	}
-
-	if (p4d_val(p4dp[p4d_index]) == 0) {
-		next_phys = pt_ops.alloc_pud(va);
-		p4dp[p4d_index] = pfn_p4d(PFN_DOWN(next_phys), PAGE_TABLE);
-		nextp = pt_ops.get_pud_virt(next_phys);
-		memset(nextp, 0, PAGE_SIZE);
-	} else {
-		next_phys = PFN_PHYS(_p4d_pfn(p4dp[p4d_index]));
-		nextp = pt_ops.get_pud_virt(next_phys);
-	}
-
-	create_pud_mapping(nextp, va, pa, sz, prot);
-}
-
-static void create_p4d_mapping_late(p4d_t *p4dp, uintptr_t va, phys_addr_t pa, phys_addr_t sz,
 					 pgprot_t prot)
 {
 	pud_t *nextp;
@@ -670,36 +591,20 @@ static void create_p4d_mapping_late(p4d_t *p4dp, uintptr_t va, phys_addr_t pa, p
 		(uintptr_t)trampoline_p4d : (pgtable_l4_enabled ?	\
 		(uintptr_t)trampoline_pud : (uintptr_t)trampoline_pmd))
 
-/* Not for the early stage */
 void __set_fixmap(enum fixed_addresses idx, phys_addr_t phys, pgprot_t prot)
 {
 	unsigned long addr = __fix_to_virt(idx);
 	pte_t *ptep;
 
-	uintptr_t ma = midgard_insert_vma(&swapper_midgard_root, addr, 4096, prot.pgprot);
+	BUG_ON(idx <= FIX_HOLE || idx >= __end_of_fixed_addresses);
 
-	/* Setup fixmap PGD */
-	create_pgd_mapping(swapper_pg_dir, ma,
-			   fixmap_pgd_next, PGDIR_SIZE, PAGE_TABLE);
-
-	/* Setup fixmap P4D and PUD */
-	if (pgtable_l5_enabled)
-		create_p4d_mapping_late(fixmap_p4d, ma,
-				   (uintptr_t)fixmap_pud, P4D_SIZE, PAGE_TABLE);
-	/* Setup fixmap PUD and PMD */
-	if (pgtable_l4_enabled)
-		create_pud_mapping_late(fixmap_pud, ma,
-				   (uintptr_t)fixmap_pmd, PUD_SIZE, PAGE_TABLE);
-	create_pmd_mapping_late(fixmap_pmd, ma,
-			   (uintptr_t)fixmap_pte, PMD_SIZE, PAGE_TABLE);
-
-	ptep = &fixmap_pte[pte_index(ma)];
+	ptep = &fixmap_pte[pte_index(addr)];
 
 	if (pgprot_val(prot))
 		set_pte(ptep, pfn_pte(phys >> PAGE_SHIFT, prot));
 	else
-		pte_clear(&init_mm, ma, ptep);
-	local_flush_tlb_page(ma);
+		pte_clear(&init_mm, addr, ptep);
+	local_flush_tlb_page(addr);
 }
 
 static inline pte_t *__init get_pte_virt_early(phys_addr_t pa)
@@ -981,24 +886,16 @@ static void __init create_fdt_early_page_table(uintptr_t fix_fdt_va,
 	/* Make sure the fdt fixmap address is always aligned on PMD size */
 	BUILD_BUG_ON(FIX_FDT % (PMD_SIZE / PAGE_SIZE));
 
-	uintptr_t ma = midgard_insert_vma(&early_midgard_root, fix_fdt_va, 2 * PMD_SIZE, PAGE_KERNEL.pgprot);
-	/* Setup early PGD for fixmap */
-	create_pgd_mapping(early_pg_dir, ma,
-			   fixmap_pgd_next, PGDIR_SIZE, PAGE_TABLE);
-
-	/* Setup fixmap P4D and PUD */
-	if (pgtable_l5_enabled)
-		create_p4d_mapping(fixmap_p4d, ma,
-				   (uintptr_t)fixmap_pud, P4D_SIZE, PAGE_TABLE);
-	/* Setup fixmap PUD and PMD */
-	if (pgtable_l4_enabled)
-		create_pud_mapping(fixmap_pud, ma,
-				   (uintptr_t)fixmap_pmd, PUD_SIZE, PAGE_TABLE);
-
-	create_pmd_mapping(fixmap_pmd, ma,
-				pa, PMD_SIZE, PAGE_KERNEL);
-	create_pmd_mapping(fixmap_pmd, ma + PMD_SIZE,
-				pa + PMD_SIZE, PMD_SIZE, PAGE_KERNEL);
+	/* In 32-bit only, the fdt lies in its own PGD */
+	if (!IS_ENABLED(CONFIG_64BIT)) {
+		create_pgd_mapping(early_pg_dir, fix_fdt_va,
+				   pa, MAX_FDT_SIZE, PAGE_KERNEL);
+	} else {
+		create_pmd_mapping(fixmap_pmd, fix_fdt_va,
+				   pa, PMD_SIZE, PAGE_KERNEL);
+		create_pmd_mapping(fixmap_pmd, fix_fdt_va + PMD_SIZE,
+				   pa + PMD_SIZE, PMD_SIZE, PAGE_KERNEL);
+	}
 
 	dtb_early_va = (void *)fix_fdt_va + (dtb_pa & (PMD_SIZE - 1));
 #else
@@ -1125,6 +1022,21 @@ asmlinkage void __init setup_vm(uintptr_t dtb_pa)
 
 	apply_early_boot_alternatives();
 	pt_ops_set_early();
+
+	/* Setup early PGD for fixmap */
+	create_pgd_mapping(early_pg_dir, FIXADDR_START,
+			   fixmap_pgd_next, PGDIR_SIZE, PAGE_TABLE);
+
+	/* Setup fixmap P4D and PUD */
+	if (pgtable_l5_enabled)
+		create_p4d_mapping(fixmap_p4d, FIXADDR_START,
+				   (uintptr_t)fixmap_pud, P4D_SIZE, PAGE_TABLE);
+	/* Setup fixmap PUD and PMD */
+	if (pgtable_l4_enabled)
+		create_pud_mapping(fixmap_pud, FIXADDR_START,
+				   (uintptr_t)fixmap_pmd, PUD_SIZE, PAGE_TABLE);
+	create_pmd_mapping(fixmap_pmd, FIXADDR_START,
+			   (uintptr_t)fixmap_pte, PMD_SIZE, PAGE_TABLE);
 
 	/* Setup trampoline PGD and PMD */
 	uintptr_t trampoline_ma = midgard_insert_vma(&trampoline_midgard_root, kernel_map.virt_addr,
