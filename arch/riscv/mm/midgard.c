@@ -154,11 +154,3 @@ uintptr_t midgard_insert_vma(struct midgard_node **root, uintptr_t va_base, phys
 
 	return midgard_addr;
 }
-
-void midgard_enable(struct midgard_node *root) {
-	csr_write(CSR_SAMT, __pa_symbol(root) | 1);
-}
-
-void midgard_disable(void) {
-	csr_write(CSR_SAMT, 0);
-}
