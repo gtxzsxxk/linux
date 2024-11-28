@@ -156,7 +156,7 @@ static void midgard_sanitize(struct midgard_node *root) {
 	}
 }
 
-uintptr_t midgard_insert_vma(struct midgard_node **root, uintptr_t va_base, phys_addr_t size, uint8_t prot) {
+uintptr_t midgard_insert_vma(struct midgard_node **root, uintptr_t va_base, phys_addr_t size, uint8_t prot, bool update_csr) {
 	static uint64_t counter = 1;
 	uintptr_t midgard_addr = 0xffaf100000000000 | ((counter++) << (8 * 4)) | (va_base & 0xfff);
 	int pos = -1;
@@ -179,6 +179,15 @@ uintptr_t midgard_insert_vma(struct midgard_node **root, uintptr_t va_base, phys
 	}
 
 	insert(root, &key);
+
+	if (update_csr) {
+		struct midgard_node *root_cp = NULL;
+		midgard_copy(*root, &root_cp);
+		midgard_sanitize(root_cp);
+		csr_write(CSR_SAMT, __pa_symbol(root_cp));
+	} else {
+		midgard_sanitize(*root);
+	}
 
 	return midgard_addr;
 }

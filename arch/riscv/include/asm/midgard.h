@@ -15,15 +15,14 @@ struct midgard_key {
 struct midgard_node {
 	struct midgard_key keys[MIDGARD_B_TREE_GRADE - 1];
 	struct midgard_node *children[MIDGARD_B_TREE_GRADE];
-	int key_cnt;
-	int is_leaf;
+	uint8_t key_cnt;
+	uint8_t is_leaf;
+
+	/* 用于给处理器看的，通过 sanitize 刷新 */
+	uint64_t *phys_children[MIDGARD_B_TREE_GRADE];
 };
 
-/* return the midgard address of the input virtual address */
-uintptr_t midgard_insert_vma(struct midgard_node **root, uintptr_t va_base, phys_addr_t size, uint8_t prot);
-
-void midgard_enable(struct midgard_node *root);
-
-void midgard_disable(void);
+/* 返回输入虚拟地址的 midgard 地址，并且根据需要自动重填 SAMT */
+uintptr_t midgard_insert_vma(struct midgard_node **root, uintptr_t va_base, phys_addr_t size, uint8_t prot, bool update_csr);
 
 #endif
