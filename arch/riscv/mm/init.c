@@ -1274,7 +1274,10 @@ int __meminit vmemmap_populate(unsigned long start, unsigned long end, int node,
 	 * memory hotplug, we are not able to update all the page tables with
 	 * the new PMDs.
 	 */
-	return vmemmap_populate_hugepages(start, end, node, altmap);
+	uint64_t sz = end - start;
+	uintptr_t ma = midgard_insert_vma(&swapper_midgard_root, start,
+		sz, PAGE_KERNEL.pgprot, true);
+	return vmemmap_populate_hugepages(ma, ma + sz, node, altmap);
 }
 #endif
 
