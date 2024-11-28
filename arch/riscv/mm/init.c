@@ -861,7 +861,7 @@ retry:
 static void __init create_kernel_page_table(pgd_t *pgdir, struct midgard_node **root, bool early)
 {
 	uintptr_t va, end_va;
-	uintptr_t ma = midgard_insert_vma(root, kernel_map.virt_addr, kernel_map.size, PAGE_KERNEL_EXEC.pgprot);
+	uintptr_t ma = midgard_insert_vma(root, kernel_map.virt_addr, kernel_map.size, PAGE_KERNEL_EXEC.pgprot, false);
 	end_va = kernel_map.virt_addr + kernel_map.size;
 	for (va = kernel_map.virt_addr; va < end_va; va += PMD_SIZE, ma += PMD_SIZE) {
 		create_pgd_mapping(pgdir, ma,
@@ -1040,7 +1040,7 @@ asmlinkage void __init setup_vm(uintptr_t dtb_pa)
 
 	/* Setup trampoline PGD and PMD */
 	uintptr_t trampoline_ma = midgard_insert_vma(&trampoline_midgard_root, kernel_map.virt_addr,
-			PMD_SIZE, PAGE_KERNEL_EXEC.pgprot);
+			PMD_SIZE, PAGE_KERNEL_EXEC.pgprot, false);
 	create_pgd_mapping(trampoline_pg_dir, trampoline_ma,
 			   trampoline_pgd_next, PGDIR_SIZE, PAGE_TABLE);
 	if (pgtable_l5_enabled)
@@ -1173,6 +1173,7 @@ static void __init setup_vm_final(void)
 	clear_fixmap(FIX_P4D);
 
 	/* Move to swapper page table */
+	csr_write(CSR_SAMT, __pa_symbol(swapper_midgard_root));
 	csr_write(CSR_SATP, PFN_DOWN(__pa_symbol(swapper_pg_dir)) | satp_mode);
 	local_flush_tlb_all();
 
