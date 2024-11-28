@@ -143,6 +143,19 @@ static void midgard_copy(struct midgard_node *src, struct midgard_node **dest) {
 	}
 }
 
+/* 对 midgard b 树填入物理地址，这个 b 树一般需要是一个拷贝 */
+static void midgard_sanitize(struct midgard_node *root) {
+	int need_pa_symbol = ((uintptr_t)midgard_sanitize >> 32) & 0xffffffff;
+	for (int i = 0; i <= root->key_cnt; i++) {
+		if (!root->children[i]) {
+			root->phys_children[i] = NULL;
+			continue;
+		}
+		midgard_sanitize(root->children[i]);
+		root->phys_children[i] = need_pa_symbol ? (phys_addr_t*)__pa_symbol(root->children[i]) : (phys_addr_t*)root->children[i];
+	}
+}
+
 uintptr_t midgard_insert_vma(struct midgard_node **root, uintptr_t va_base, phys_addr_t size, uint8_t prot) {
 	static uint64_t counter = 1;
 	uintptr_t midgard_addr = 0xff00000000000000 | ((counter++) << (12 * 4)) | (va_base & 0xfff);
