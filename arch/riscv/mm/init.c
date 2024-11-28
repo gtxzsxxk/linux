@@ -1093,15 +1093,19 @@ static void __meminit create_linear_mapping_range(phys_addr_t start, phys_addr_t
 						  uintptr_t fixed_map_size, const pgprot_t *pgprot)
 {
 	phys_addr_t pa;
-	uintptr_t va, map_size;
+	uintptr_t map_size;
+
+	uintptr_t ma = midgard_insert_vma(&swapper_midgard_root, (uintptr_t)__va(start),
+	end - start, pgprot ? pgprot->pgprot : pgprot_from_va((uintptr_t)__va(start)).pgprot, false);
 
 	for (pa = start; pa < end; pa += map_size) {
-		va = (uintptr_t)__va(pa);
+		uintptr_t va = (uintptr_t)__va(pa);
 		map_size = fixed_map_size ? fixed_map_size :
 					    best_map_size(pa, va, end - pa);
 
-		create_pgd_mapping(swapper_pg_dir, va, pa, map_size,
+		create_pgd_mapping(swapper_pg_dir, ma, pa, map_size,
 				   pgprot ? *pgprot : pgprot_from_va(va));
+		ma += map_size;
 	}
 }
 
