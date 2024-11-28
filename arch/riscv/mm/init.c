@@ -1155,16 +1155,6 @@ static void __init create_linear_mapping_page_table(void)
 static void __init setup_vm_final(void)
 {
 	/* Setup swapper PGD for fixmap */
-#if !defined(CONFIG_64BIT)
-	/*
-	 * In 32-bit, the device tree lies in a pgd entry, so it must be copied
-	 * directly in swapper_pg_dir in addition to the pgd entry that points
-	 * to fixmap_pte.
-	 */
-	unsigned long idx = pgd_index(__fix_to_virt(FIX_FDT));
-
-	set_pgd(&swapper_pg_dir[idx], early_pg_dir[idx]);
-#endif
 	create_pgd_mapping(swapper_pg_dir, FIXADDR_START,
 			   __pa_symbol(fixmap_pgd_next),
 			   PGDIR_SIZE, PAGE_TABLE);
@@ -1175,10 +1165,6 @@ static void __init setup_vm_final(void)
 	/* Map the kernel */
 	if (IS_ENABLED(CONFIG_64BIT))
 		create_kernel_page_table(swapper_pg_dir, &swapper_midgard_root, false);
-
-#ifdef CONFIG_KASAN
-	kasan_swapper_init();
-#endif
 
 	/* Clear fixmap PTE and PMD mappings */
 	clear_fixmap(FIX_PTE);
