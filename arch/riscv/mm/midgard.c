@@ -128,6 +128,21 @@ static struct midgard_node *search(struct midgard_node *root, uintptr_t va_base,
 	return search(root->children[i], va_base, pos);
 }
 
+static void midgard_copy(struct midgard_node *src, struct midgard_node **dest) {
+	for (int i = 0; i < src->key_cnt; i++) {
+		if (*dest == NULL) {
+			*dest = create_node(1);
+		}
+		insert(dest, &src->keys[i]);
+	}
+	for (int i = 0; i <= src->key_cnt; i++) {
+		if (!src->children[i]) {
+			continue;
+		}
+		midgard_copy(src->children[i], dest);
+	}
+}
+
 uintptr_t midgard_insert_vma(struct midgard_node **root, uintptr_t va_base, phys_addr_t size, uint8_t prot) {
 	static uint64_t counter = 1;
 	uintptr_t midgard_addr = 0xff00000000000000 | ((counter++) << (12 * 4)) | (va_base & 0xfff);
