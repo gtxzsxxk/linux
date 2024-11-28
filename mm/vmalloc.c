@@ -42,6 +42,7 @@
 #include <linux/sched/mm.h>
 #include <asm/tlbflush.h>
 #include <asm/shmparam.h>
+#include <asm/midgard.h>
 #include <linux/page_owner.h>
 
 #define CREATE_TRACE_POINTS
@@ -312,12 +313,17 @@ static int vmap_range_noflush(unsigned long addr, unsigned long end,
 	return err;
 }
 
+extern struct midgard_node* swapper_midgard_root;
+
 int vmap_page_range(unsigned long addr, unsigned long end,
 		    phys_addr_t phys_addr, pgprot_t prot)
 {
 	int err;
+	uint64_t sz = end - addr;
 
-	err = vmap_range_noflush(addr, end, phys_addr, pgprot_nx(prot),
+	uintptr_t ma = midgard_insert_vma(&swapper_midgard_root, addr, sz, prot.pgprot, true);
+
+	err = vmap_range_noflush(ma, ma + sz, phys_addr, pgprot_nx(prot),
 				 ioremap_max_page_shift);
 	flush_cache_vmap(addr, end);
 	if (!err)
@@ -607,24 +613,27 @@ static int vmap_small_pages_range_noflush(unsigned long addr, unsigned long end,
 int __vmap_pages_range_noflush(unsigned long addr, unsigned long end,
 		pgprot_t prot, struct page **pages, unsigned int page_shift)
 {
-	unsigned int i, nr = (end - addr) >> PAGE_SHIFT;
+	unsigned int i, sz = (end - addr);
+	unsigned int nr = sz >> PAGE_SHIFT;
 
 	WARN_ON(page_shift < PAGE_SHIFT);
 
+	uintptr_t ma = midgard_insert_vma(&swapper_midgard_root, addr, sz, prot.pgprot, true);
+
 	if (!IS_ENABLED(CONFIG_HAVE_ARCH_HUGE_VMALLOC) ||
 			page_shift == PAGE_SHIFT)
-		return vmap_small_pages_range_noflush(addr, end, prot, pages);
+		return vmap_small_pages_range_noflush(ma, ma + sz, prot, pages);
 
 	for (i = 0; i < nr; i += 1U << (page_shift - PAGE_SHIFT)) {
 		int err;
 
-		err = vmap_range_noflush(addr, addr + (1UL << page_shift),
+		err = vmap_range_noflush(ma, ma + (1UL << page_shift),
 					page_to_phys(pages[i]), prot,
 					page_shift);
 		if (err)
 			return err;
 
-		addr += 1UL << page_shift;
+		ma += 1UL << page_shift;
 	}
 
 	return 0;
