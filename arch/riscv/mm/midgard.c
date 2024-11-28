@@ -158,7 +158,7 @@ static void midgard_sanitize(struct midgard_node *root) {
 
 uintptr_t midgard_insert_vma(struct midgard_node **root, uintptr_t va_base, phys_addr_t size, uint8_t prot) {
 	static uint64_t counter = 1;
-	uintptr_t midgard_addr = 0xff00000000000000 | ((counter++) << (12 * 4)) | (va_base & 0xfff);
+	uintptr_t midgard_addr = 0xffaf100000000000 | ((counter++) << (8 * 4)) | (va_base & 0xfff);
 	int pos = -1;
 
 	struct midgard_node *lookup = search(*root, va_base, &pos);
