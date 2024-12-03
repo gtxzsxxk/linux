@@ -112,7 +112,7 @@ struct midgard_node *midgard_search(struct midgard_node *root, uintptr_t va_base
 		return NULL;
 	}
 
-	while (i < root->key_cnt && va_base > root->keys[i].bound) {
+	while (i < root->key_cnt && va_base >= root->keys[i].bound) {
 		i++;
 	}
 
