@@ -105,7 +105,7 @@ static void insert(struct midgard_node **root, struct midgard_key *key) {
 	}
 }
 
-static struct midgard_node *search(struct midgard_node *root, uintptr_t va_base, int *pos) {
+struct midgard_node *midgard_search(struct midgard_node *root, uintptr_t va_base, int *pos) {
 	int i = 0;
 
 	if (!root) {
@@ -125,7 +125,7 @@ static struct midgard_node *search(struct midgard_node *root, uintptr_t va_base,
 		return NULL;
 	}
 
-	return search(root->children[i], va_base, pos);
+	return midgard_search(root->children[i], va_base, pos);
 }
 
 static void midgard_copy(struct midgard_node *src, struct midgard_node **dest) {
@@ -161,7 +161,7 @@ uintptr_t midgard_insert_vma(struct midgard_node **root, uintptr_t va_base, phys
 	uintptr_t midgard_addr = 0xffaf100000000000 | ((counter++) << (8 * 4)) | (va_base & 0xfff);
 	int pos = -1;
 
-	struct midgard_node *lookup = search(*root, va_base, &pos);
+	struct midgard_node *lookup = midgard_search(*root, va_base, &pos);
 	if(lookup) {
 		panic("Existing midgard va address!");
 	}

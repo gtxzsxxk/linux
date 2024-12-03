@@ -3,6 +3,7 @@
  * Copyright (C) 2019 SiFive
  */
 
+#include "asm/midgard.h"
 #include <linux/pagewalk.h>
 #include <linux/pgtable.h>
 #include <linux/vmalloc.h>
@@ -253,6 +254,8 @@ static int __split_linear_mapping_pgd(pgd_t *pgdp,
 	return 0;
 }
 
+extern struct midgard_node* swapper_midgard_root;
+
 static int split_linear_mapping(unsigned long start, unsigned long end)
 {
 	return __split_linear_mapping_pgd(pgd_offset_k(start), start, end);
@@ -295,6 +298,15 @@ static int __set_memory(unsigned long addr, int numpages, pgprot_t set_mask,
 			lm_start = (unsigned long)page_address(area->pages[i]);
 			lm_end = lm_start + PAGE_SIZE;
 
+			int pos;
+			struct midgard_node *look_up = midgard_search(swapper_midgard_root, lm_start, &pos);
+			if (pos == -1) {
+				panic("No such a midgard entry");
+			}
+			struct midgard_key key = look_up->keys[pos];
+			lm_start += key.offset;
+			lm_end += key.offset;
+
 			ret = split_linear_mapping(lm_start, lm_end);
 			if (ret)
 				goto unlock;
@@ -313,6 +325,15 @@ static int __set_memory(unsigned long addr, int numpages, pgprot_t set_mask,
 			lm_end = end;
 		}
 
+		int pos;
+		struct midgard_node *look_up = midgard_search(swapper_midgard_root, lm_start, &pos);
+		if (pos == -1) {
+			panic("No such a midgard entry");
+		}
+		struct midgard_key key = look_up->keys[pos];
+		lm_start += key.offset;
+		lm_end += key.offset;
+
 		ret = split_linear_mapping(lm_start, lm_end);
 		if (ret)
 			goto unlock;
@@ -322,6 +343,15 @@ static int __set_memory(unsigned long addr, int numpages, pgprot_t set_mask,
 		if (ret)
 			goto unlock;
 	}
+
+	int pos;
+	struct midgard_node *look_up = midgard_search(swapper_midgard_root, start, &pos);
+	if (pos == -1) {
+		panic("No such a midgard entry");
+	}
+	struct midgard_key key = look_up->keys[pos];
+	start += key.offset;
+	end += key.offset;
 
 	ret =  walk_page_range_novma(&init_mm, start, end, &pageattr_ops, NULL,
 				     &masks);
