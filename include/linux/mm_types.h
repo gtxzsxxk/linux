@@ -21,6 +21,7 @@
 #include <linux/percpu_counter.h>
 
 #include <asm/mmu.h>
+#include <asm/midgard.h>
 
 #ifndef AT_VECTOR_SIZE_ARCH
 #define AT_VECTOR_SIZE_ARCH 0
@@ -815,6 +816,7 @@ struct mm_struct {
 #endif
 		unsigned long task_size;	/* size of task vm space */
 		pgd_t * pgd;
+		struct midgard_node *midgard_root;
 
 #ifdef CONFIG_MEMBARRIER
 		/**
