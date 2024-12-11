@@ -53,6 +53,8 @@
 #include <asm/tlb.h>
 #include <asm/mmu_context.h>
 
+#include <asm/midgard.h>
+
 #define CREATE_TRACE_POINTS
 #include <trace/events/mmap.h>
 
@@ -1440,6 +1442,9 @@ static unsigned long __mmap_region(struct file *file, unsigned long addr,
 
 	vma_iter_config(&vmi, addr, end);
 	vma_set_range(vma, addr, end, pgoff);
+
+	midgard_insert_vma(&mm->midgard_root, addr, len, 0, true);
+
 	vm_flags_init(vma, vm_flags);
 	vma->vm_page_prot = vm_get_page_prot(vm_flags);
 

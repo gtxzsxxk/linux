@@ -50,6 +50,8 @@
 #include <asm/param.h>
 #include <asm/page.h>
 
+#include <asm/midgard.h>
+
 #ifndef ELF_COMPAT
 #define ELF_COMPAT 0
 #endif
@@ -381,6 +383,16 @@ static unsigned long elf_map(struct file *filep, unsigned long addr,
 		map_addr = vm_mmap(filep, addr, total_size, prot, type, off);
 		if (!BAD_ADDR(map_addr))
 			vm_munmap(map_addr+size, total_size-size);
+
+		/* Fix midgard vma up */
+		int m_pos = -1;
+
+		struct midgard_node *lookup = midgard_search(current->mm->midgard_root, addr, &m_pos);
+		if(!lookup || m_pos == -1) {
+			panic("Cannot find midgard vma and fix it");
+		}
+
+		lookup->keys[m_pos].bound = lookup->keys[m_pos].base + size;
 	} else
 		map_addr = vm_mmap(filep, addr, size, prot, type, off);
 
