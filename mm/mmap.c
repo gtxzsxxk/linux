@@ -2322,8 +2322,9 @@ int relocate_vma_down(struct vm_area_struct *vma, unsigned long shift)
 	 * 1) Use shift to calculate the new vma endpoints.
 	 * 2) Extend vma to cover both the old and new ranges.  This ensures the
 	 *    arguments passed to subsequent functions are consistent.
-	 * 3) Move vma's page tables to the new range.
-	 * 4) Free up any cleared pgd range.
+	 * 3) Update midgard VMA
+	 * 4) No need to free up any cleared pgd range because the midgard addr
+	 *    is not affected
 	 * 5) Shrink the vma to cover only the new range.
 	 */
 
@@ -2355,33 +2356,24 @@ int relocate_vma_down(struct vm_area_struct *vma, unsigned long shift)
 	if (vma_expand(&vmg))
 		return -ENOMEM;
 
-	/*
-	 * move the page tables downwards, on failure we rely on
-	 * process cleanup to remove whatever mess we made.
-	 */
-	if (length != move_page_tables(vma, old_start,
-				       vma, new_start, length, false, true))
-		return -ENOMEM;
+	int m_pos;
+	struct midgard_node *look_up = midgard_search(mm->midgard_root, old_start, &m_pos);
+	if (m_pos == -1 || !look_up) {
+		panic("Relocate VMA is not found in midgard");
+	}
+	unsigned long old_offset = look_up->keys[m_pos].offset;
+	/* TODO: implement B-tree delete */
+	midgard_insert_vma(&mm->midgard_root, new_start, length, 0, true);
+	look_up = midgard_search(mm->midgard_root, new_start, &m_pos);
+	if (m_pos == -1 || !look_up) {
+		panic("Relocate new added VMA is not found in midgard");
+	}
+	look_up->keys[m_pos].offset = old_offset + shift;
 
 	lru_add_drain();
 	tlb_gather_mmu(&tlb, mm);
 	next = vma_next(&vmi);
-	if (new_end > old_start) {
-		/*
-		 * when the old and new regions overlap clear from new_end.
-		 */
-		free_pgd_range(&tlb, new_end, old_end, new_end,
-			next ? next->vm_start : USER_PGTABLES_CEILING);
-	} else {
-		/*
-		 * otherwise, clean from old_start; this is done to not touch
-		 * the address space in [new_end, old_start) some architectures
-		 * have constraints on va-space that make this illegal (IA64) -
-		 * for the others its just a little faster.
-		 */
-		free_pgd_range(&tlb, old_start, old_end, new_end,
-			next ? next->vm_start : USER_PGTABLES_CEILING);
-	}
+	/* TODO: midgard flush */
 	tlb_finish_mmu(&tlb);
 
 	vma_prev(&vmi);
