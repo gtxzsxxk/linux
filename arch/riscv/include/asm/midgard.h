@@ -22,7 +22,11 @@ struct midgard_node {
 	uint64_t *phys_children[MIDGARD_B_TREE_GRADE];
 };
 
+extern struct midgard_node *midgard_scratch;
+
 struct midgard_node *midgard_search(struct midgard_node *root, uintptr_t va_base, int *pos);
+
+void midgard_copy(struct midgard_node *src, struct midgard_node **dest);
 
 /* 返回输入虚拟地址的 midgard 地址，并且根据需要自动重填 SAMT */
 uintptr_t midgard_insert_vma(struct midgard_node **root, uintptr_t va_base, phys_addr_t size, uint8_t prot, bool update_csr);

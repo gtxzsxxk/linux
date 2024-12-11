@@ -9,6 +9,8 @@
 static struct midgard_node node_pool[MIDGARD_BRUTE_NODES] __page_aligned_bss;
 static int node_alloc_counter = 0;
 
+struct midgard_node *midgard_scratch = NULL;
+
 static struct midgard_node *alloc_node(void) {
 	if(node_alloc_counter == MIDGARD_BRUTE_NODES) {
 		panic("No enough space for midgard nodes");
@@ -128,7 +130,7 @@ struct midgard_node *midgard_search(struct midgard_node *root, uintptr_t va_base
 	return midgard_search(root->children[i], va_base, pos);
 }
 
-static void midgard_copy(struct midgard_node *src, struct midgard_node **dest) {
+void midgard_copy(struct midgard_node *src, struct midgard_node **dest) {
 	for (int i = 0; i < src->key_cnt; i++) {
 		if (*dest == NULL) {
 			*dest = create_node(1);
@@ -162,7 +164,7 @@ uintptr_t midgard_insert_vma(struct midgard_node **root, uintptr_t va_base, phys
 	int pos = -1;
 
 	struct midgard_node *lookup = midgard_search(*root, va_base, &pos);
-	if(lookup) {
+	if(lookup && pos != -1) {
 		panic("Existing midgard va address!");
 	}
 
