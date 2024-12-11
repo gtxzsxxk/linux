@@ -5,6 +5,7 @@
  * Copyright (C) 2021 Western Digital Corporation or its affiliates.
  */
 
+#include "asm/page.h"
 #include <linux/bitops.h>
 #include <linux/cpumask.h>
 #include <linux/mm.h>
@@ -189,6 +190,7 @@ static void set_mm_asid(struct mm_struct *mm, unsigned int cpu)
 	raw_spin_unlock_irqrestore(&context_lock, flags);
 
 switch_mm_fast:
+	csr_write(CSR_SAMT, __pa(mm->midgard_root));
 	csr_write(CSR_SATP, virt_to_pfn(mm->pgd) |
 		  (cntx2asid(cntx) << SATP_ASID_SHIFT) |
 		  satp_mode);
@@ -199,6 +201,7 @@ switch_mm_fast:
 
 static void set_mm_noasid(struct mm_struct *mm)
 {
+	csr_write(CSR_SAMT, __pa(mm->midgard_root));
 	/* Switch the page table and blindly nuke entire local TLB */
 	csr_write(CSR_SATP, virt_to_pfn(mm->pgd) | satp_mode);
 	local_flush_tlb_all_asid(0);
