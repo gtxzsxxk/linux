@@ -25,6 +25,8 @@
 #include <asm/mmu_context.h>
 #include <asm/tlbflush.h>
 
+#include <asm/midgard.h>
+
 #include "internal.h"
 
 struct follow_page_context {
@@ -1480,7 +1482,18 @@ retry:
 		}
 		cond_resched();
 
+		int m_pos;
+		struct midgard_node *look_up = midgard_search(mm->midgard_root, start, &m_pos);
+		if (m_pos == -1 || !look_up) {
+			panic("No such a VMA");
+		}
+		vma->vm_start += look_up->keys[m_pos].offset;
+		vma->vm_end += look_up->keys[m_pos].offset;
+		start += look_up->keys[m_pos].offset;
 		page = follow_page_mask(vma, start, gup_flags, &ctx);
+		start -= look_up->keys[m_pos].offset;
+		vma->vm_start -= look_up->keys[m_pos].offset;
+		vma->vm_end -= look_up->keys[m_pos].offset;
 		if (!page || PTR_ERR(page) == -EMLINK) {
 			ret = faultin_page(vma, start, gup_flags,
 					   PTR_ERR(page) == -EMLINK, locked);
