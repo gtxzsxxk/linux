@@ -9,7 +9,7 @@
 static struct midgard_node node_pool[MIDGARD_BRUTE_NODES] __page_aligned_bss;
 static int node_alloc_counter = 0;
 
-struct midgard_node *midgard_scratch = NULL;
+struct midgard_key *midgard_scratch = NULL;
 
 static struct midgard_node *alloc_node(void) {
 	if(node_alloc_counter == MIDGARD_BRUTE_NODES) {
@@ -182,6 +182,7 @@ uintptr_t midgard_insert_vma(struct midgard_node **root, uintptr_t va_base, phys
 
 	insert(root, &key);
 
+	/* TODO: 检查有的地方是否应该 update_csr */
 	if (update_csr) {
 		struct midgard_node *root_cp = NULL;
 		midgard_copy(*root, &root_cp);

@@ -22,7 +22,7 @@ struct midgard_node {
 	uint64_t *phys_children[MIDGARD_B_TREE_GRADE];
 };
 
-extern struct midgard_node *midgard_scratch;
+extern struct midgard_key *midgard_scratch;
 
 struct midgard_node *midgard_search(struct midgard_node *root, uintptr_t va_base, int *pos);
 
