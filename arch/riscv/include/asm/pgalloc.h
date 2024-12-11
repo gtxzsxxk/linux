@@ -10,6 +10,7 @@
 #include <linux/mm.h>
 #include <asm/sbi.h>
 #include <asm/tlb.h>
+#include <asm/midgard.h>
 
 #ifdef CONFIG_MMU
 #define __HAVE_ARCH_PUD_ALLOC_ONE
@@ -157,6 +158,8 @@ static inline void sync_kernel_mappings(pgd_t *pgd)
 	       (PTRS_PER_PGD - USER_PTRS_PER_PGD) * sizeof(pgd_t));
 }
 
+extern struct midgard_node* swapper_midgard_root;
+
 static inline pgd_t *pgd_alloc(struct mm_struct *mm)
 {
 	pgd_t *pgd;
@@ -166,6 +169,8 @@ static inline pgd_t *pgd_alloc(struct mm_struct *mm)
 		memset(pgd, 0, USER_PTRS_PER_PGD * sizeof(pgd_t));
 		/* Copy kernel mappings */
 		sync_kernel_mappings(pgd);
+		/* Copy kernel midgard */
+		midgard_copy(swapper_midgard_root, &mm->midgard_root);
 	}
 	return pgd;
 }
