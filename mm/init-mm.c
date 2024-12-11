@@ -19,6 +19,8 @@
 
 const struct vm_operations_struct vma_dummy_vm_ops;
 
+extern struct midgard_node* swapper_midgard_root;
+
 /*
  * For dynamically allocated mm_structs, there is a dynamically sized cpumask
  * at the end of the structure, the size of which depends on the maximum CPU
@@ -54,4 +56,5 @@ void setup_initial_init_mm(void *start_code, void *end_code,
 	init_mm.end_code = (unsigned long)end_code;
 	init_mm.end_data = (unsigned long)end_data;
 	init_mm.brk = (unsigned long)brk;
+	init_mm.midgard_root = swapper_midgard_root;
 }
