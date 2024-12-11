@@ -387,7 +387,7 @@ static unsigned long elf_map(struct file *filep, unsigned long addr,
 		/* Fix midgard vma up */
 		int m_pos = -1;
 
-		struct midgard_node *lookup = midgard_search(current->mm->midgard_root, addr, &m_pos);
+		struct midgard_node *lookup = midgard_search(current->mm->midgard_root, map_addr, &m_pos);
 		if(!lookup || m_pos == -1) {
 			panic("Cannot find midgard vma and fix it");
 		}
