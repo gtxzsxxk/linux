@@ -88,6 +88,8 @@
 #include <asm/tlb.h>
 #include <asm/tlbflush.h>
 
+#include <asm/midgard.h>
+
 #include "pgalloc-track.h"
 #include "internal.h"
 #include "swap.h"
@@ -5816,15 +5818,25 @@ unlock:
 static vm_fault_t __handle_mm_fault(struct vm_area_struct *vma,
 		unsigned long address, unsigned int flags)
 {
+	struct mm_struct *mm = vma->vm_mm;
+
+	int m_pos;
+	struct midgard_node *look_up = midgard_search(mm->midgard_root, address, &m_pos);
+	if (m_pos == -1 || !look_up) {
+		panic("No such a VMA");
+	}
+	address += look_up->keys[m_pos].offset;
+	vma->vm_start += look_up->keys[m_pos].offset;
+	vma->vm_end += look_up->keys[m_pos].offset;
+
 	struct vm_fault vmf = {
 		.vma = vma,
 		.address = address & PAGE_MASK,
-		.real_address = address,
+		.real_address = address - look_up->keys[m_pos].offset,
 		.flags = flags,
 		.pgoff = linear_page_index(vma, address),
 		.gfp_mask = __get_fault_gfp_mask(vma),
 	};
-	struct mm_struct *mm = vma->vm_mm;
 	unsigned long vm_flags = vma->vm_flags;
 	pgd_t *pgd;
 	p4d_t *p4d;
@@ -5906,7 +5918,10 @@ retry_pud:
 		}
 	}
 
-	return handle_pte_fault(&vmf);
+	vm_fault_t pte_ret = handle_pte_fault(&vmf);
+	vma->vm_start -= look_up->keys[m_pos].offset;
+	vma->vm_end -= look_up->keys[m_pos].offset;
+	return pte_ret;
 }
 
 /**
