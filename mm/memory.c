@@ -5918,6 +5918,7 @@ retry_pud:
 		}
 	}
 
+	midgard_scratch = &look_up->keys[m_pos];
 	vm_fault_t pte_ret = handle_pte_fault(&vmf);
 	vma->vm_start -= look_up->keys[m_pos].offset;
 	vma->vm_end -= look_up->keys[m_pos].offset;

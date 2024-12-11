@@ -53,6 +53,7 @@
  *         folio_lock
  */
 
+#include "asm/midgard.h"
 #include <linux/mm.h>
 #include <linux/sched/mm.h>
 #include <linux/sched/task.h>
@@ -197,6 +198,9 @@ int __anon_vma_prepare(struct vm_area_struct *vma)
 	if (!avc)
 		goto out_enomem;
 
+	vma->vm_start -= midgard_scratch->offset;
+	vma->vm_end -= midgard_scratch->offset;
+
 	anon_vma = find_mergeable_anon_vma(vma);
 	allocated = NULL;
 	if (!anon_vma) {
@@ -206,6 +210,9 @@ int __anon_vma_prepare(struct vm_area_struct *vma)
 		anon_vma->num_children++; /* self-parent link for new root */
 		allocated = anon_vma;
 	}
+
+	vma->vm_start += midgard_scratch->offset;
+	vma->vm_end += midgard_scratch->offset;
 
 	anon_vma_lock_write(anon_vma);
 	/* page_table_lock to protect against threads */
