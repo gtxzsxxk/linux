@@ -10,6 +10,7 @@ static struct midgard_node node_pool[MIDGARD_BRUTE_NODES] __page_aligned_bss;
 static int node_alloc_counter = 0;
 
 struct midgard_key *midgard_scratch = NULL;
+uint64_t midgard_addr_counter = 1;
 
 static struct midgard_node *alloc_node(void) {
 	if(node_alloc_counter == MIDGARD_BRUTE_NODES) {
@@ -158,14 +159,21 @@ static void midgard_sanitize(struct midgard_node *root) {
 	}
 }
 
+void midgard_full_sanitize_and_update_csr(struct midgard_node **root) {
+	struct midgard_node *root_cp = NULL;
+	midgard_copy(*root, &root_cp);
+	midgard_sanitize(root_cp);
+	csr_write(CSR_SAMT, __pa_symbol(root_cp));
+}
+
 uintptr_t midgard_insert_vma(struct midgard_node **root, uintptr_t va_base, phys_addr_t size, uint8_t prot, bool update_csr) {
-	static uint64_t counter = 1;
-	uintptr_t midgard_addr = 0xffaf100000000000 | ((counter++) << (8 * 4)) | (va_base & 0xfff);
+	uintptr_t midgard_addr = 0xffaf100000000000 | ((midgard_addr_counter++) << (8 * 4)) | (va_base & 0xfff);
 	int pos = -1;
 
 	struct midgard_node *lookup = midgard_search(*root, va_base, &pos);
 	if(lookup && pos != -1) {
-		panic("Existing midgard va address!");
+		pr_err("Existing midgard va address!");
+		return lookup->keys[pos].offset + va_base;
 	}
 
 	struct midgard_key key = {
