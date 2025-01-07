@@ -11,6 +11,7 @@
 #include <linux/slab.h>
 #include <linux/binfmts.h>
 #include <linux/err.h>
+#include <linux/pagemap.h>
 #include <asm/page.h>
 #include <asm/vdso.h>
 #include <linux/time_namespace.h>
@@ -126,8 +127,9 @@ static vm_fault_t vvar_fault(const struct vm_special_mapping *sm,
 {
 	struct page *timens_page = find_timens_vvar_page(vma);
 	unsigned long pfn;
-
-	switch (vmf->pgoff) {
+	pgoff_t pgoff = linear_page_index(vma, vmf->real_address);
+	/* TODO: 这里需要根据 real address 重新计算 pgoff */
+	switch (pgoff) {
 	case VVAR_DATA_PAGE_OFFSET:
 		if (timens_page)
 			pfn = page_to_pfn(timens_page);
