@@ -185,6 +185,17 @@ SYSCALL_DEFINE1(brk, unsigned long, brk)
 	if (check_brk_limits(oldbrk, newbrk - oldbrk))
 		goto out;
 
+	/* Update midgard VMA */
+	int m_pos;
+	struct midgard_node *look_up = midgard_search(mm->midgard_root, origbrk, &m_pos);
+	if (m_pos == -1 || !look_up) {
+		/* 没有这样的brk，新开一个 */
+		midgard_insert_vma(&mm->midgard_root, mm->start_brk, newbrk - mm->start_brk, 0, true);
+	} else {
+		look_up->keys[m_pos].bound = newbrk;
+		midgard_full_sanitize_and_update_csr(&mm->midgard_root);
+	}
+
 	/*
 	 * Only check if the next VMA is within the stack_guard_gap of the
 	 * expansion area
@@ -1214,6 +1225,16 @@ int expand_downwards(struct vm_area_struct *vma, unsigned long address)
 				anon_vma_interval_tree_pre_update_vma(vma);
 				vma->vm_start = address;
 				vma->vm_pgoff -= grow;
+
+				int m_pos;
+				unsigned long midgard_find_addr = vma->vm_end - 100;
+				struct midgard_node *look_up = midgard_search(mm->midgard_root, midgard_find_addr, &m_pos);
+				if (m_pos == -1 || !look_up) {
+					panic("The stack VMA to be expanded is not found in midgard");
+				}
+				look_up->keys[m_pos].base = address;
+				midgard_full_sanitize_and_update_csr(&mm->midgard_root);
+
 				/* Overwrite old entry in mtree. */
 				vma_iter_store(&vmi, vma);
 				anon_vma_interval_tree_post_update_vma(vma);
@@ -1360,6 +1381,8 @@ int do_munmap(struct mm_struct *mm, unsigned long start, size_t len,
 	return do_vmi_munmap(&vmi, mm, start, len, uf, false);
 }
 
+extern uint64_t midgard_addr_counter;
+
 static unsigned long __mmap_region(struct file *file, unsigned long addr,
 		unsigned long len, vm_flags_t vm_flags, unsigned long pgoff,
 		struct list_head *uf)
@@ -1443,7 +1466,18 @@ static unsigned long __mmap_region(struct file *file, unsigned long addr,
 	vma_iter_config(&vmi, addr, end);
 	vma_set_range(vma, addr, end, pgoff);
 
-	midgard_insert_vma(&mm->midgard_root, addr, len, 0, true);
+	int m_pos;
+	struct midgard_node *look_up = midgard_search(mm->midgard_root, addr, &m_pos);
+	if (m_pos == -1 || !look_up) {
+		midgard_insert_vma(&mm->midgard_root, addr, len, 0, true);
+	} else {
+		look_up->keys[m_pos].base = addr;
+		look_up->keys[m_pos].bound = end;
+		uintptr_t midgard_addr = 0xffaf100000000000 | ((midgard_addr_counter++) << (8 * 4)) | (addr & 0xfff);
+		look_up->keys[m_pos].offset = midgard_addr - addr;
+
+		midgard_full_sanitize_and_update_csr(&mm->midgard_root);
+	}
 
 	vm_flags_init(vma, vm_flags);
 	vma->vm_page_prot = vm_get_page_prot(vm_flags);
