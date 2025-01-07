@@ -453,6 +453,17 @@ static unsigned long elf_load(struct file *filep, unsigned long addr,
 				     prot & PROT_EXEC ? VM_EXEC : 0);
 		if (error)
 			map_addr = error;
+
+		/* 扩充 midgard VMA 的地址 */
+		/* TODO: 实现b树删除 */
+		int m_pos = -1;
+		struct midgard_node *look_up = midgard_search(current->mm->midgard_root, map_addr, &m_pos);
+		if(!look_up || m_pos == -1) {
+			panic("Cannot find midgard vma and expand it");
+		}
+
+		look_up->keys[m_pos].bound += zero_end - zero_start;
+		midgard_full_sanitize_and_update_csr(&current->mm->midgard_root);
 	}
 	return map_addr;
 }
