@@ -35,4 +35,6 @@ void midgard_full_sanitize_and_update_csr(struct midgard_node **root);
 /* 返回输入虚拟地址的 midgard 地址，并且根据需要自动重填 SAMT */
 uintptr_t midgard_insert_vma(struct midgard_node **root, uintptr_t va_base, phys_addr_t size, uint8_t prot, bool update_csr);
 
+void midgard_print(struct midgard_node *root);
+
 #endif

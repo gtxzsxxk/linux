@@ -225,3 +225,43 @@ uintptr_t midgard_insert_vma(struct midgard_node **root, uintptr_t va_base, phys
 
 	return midgard_addr;
 }
+
+/* 打印指定数量的缩进 */
+static void print_indent(int level) {
+	for (int i = 0; i < level; i++) {
+		printk(KERN_CONT "    "); // 每一层增加 4 个空格作为缩进
+	}
+}
+
+/* 打印当前节点的信息 */
+static void midgard_print_node_debug(struct midgard_node *node, int level) {
+	if (!node) return;
+
+	/* 打印当前节点所在的层级 */
+	print_indent(level);
+	printk(KERN_CONT "Level %d: Node at %016llx, is_leaf = %d, key_cnt = %d\n", 
+		level, (uint64_t)node, node->is_leaf, node->key_cnt);
+
+	/* 打印当前节点的所有键值 */
+	for (int i = 0; i < node->key_cnt; i++) {
+		print_indent(level + 1);
+		printk(KERN_CONT "  Key %d: base = %016llx, bound = %016llx, offset = %016llx\n", 
+			i, node->keys[i].base, node->keys[i].bound, node->keys[i].offset);
+	}
+
+	/* 如果是非叶节点，递归打印其子节点 */
+	if (!node->is_leaf) {
+		for (int i = 0; i <= node->key_cnt; i++) {
+			print_indent(level + 1);
+			printk(KERN_CONT "Child %d:\n", i);
+			midgard_print_node_debug(node->children[i], level + 2);
+		}
+	}
+}
+
+/* 打印整棵 B 树 */
+void midgard_print(struct midgard_node *root) {
+	pr_err("Starting B-tree debug output...\n");
+	midgard_print_node_debug(root, 0);
+	pr_err("B-tree debug output completed.\n");
+}
