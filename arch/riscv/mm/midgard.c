@@ -108,6 +108,29 @@ static void insert(struct midgard_node **root, struct midgard_key *key) {
 	}
 }
 
+struct midgard_node *midgard_search_close_bound(struct midgard_node *root, uintptr_t va_base, int *pos) {
+	int i = 0;
+
+	if (!root) {
+		return NULL;
+	}
+
+	while (i < root->key_cnt && va_base >= root->keys[i].bound) {
+		i++;
+	}
+
+	if(i < root->key_cnt && va_base >= root->keys[i].base && va_base <= root->keys[i].bound) {
+		*pos = i;
+		return root;
+	}
+
+	if(root->is_leaf) {
+		return NULL;
+	}
+
+	return midgard_search_close_bound(root->children[i], va_base, pos);
+}
+
 struct midgard_node *midgard_search(struct midgard_node *root, uintptr_t va_base, int *pos) {
 	int i = 0;
 

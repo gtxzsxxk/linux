@@ -187,7 +187,7 @@ SYSCALL_DEFINE1(brk, unsigned long, brk)
 
 	/* Update midgard VMA */
 	int m_pos;
-	struct midgard_node *look_up = midgard_search(mm->midgard_root, origbrk, &m_pos);
+	struct midgard_node *look_up = midgard_search_close_bound(mm->midgard_root, origbrk, &m_pos);
 	if (m_pos == -1 || !look_up) {
 		/* 没有这样的brk，新开一个 */
 		midgard_insert_vma(&mm->midgard_root, mm->start_brk, newbrk - mm->start_brk, 0, true);

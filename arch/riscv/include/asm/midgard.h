@@ -24,6 +24,8 @@ struct midgard_node {
 
 extern struct midgard_key *midgard_scratch;
 
+struct midgard_node *midgard_search_close_bound(struct midgard_node *root, uintptr_t va_base, int *pos);
+
 struct midgard_node *midgard_search(struct midgard_node *root, uintptr_t va_base, int *pos);
 
 void midgard_copy(struct midgard_node *src, struct midgard_node **dest);
