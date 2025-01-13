@@ -80,6 +80,8 @@ static inline void syscall_handler(struct pt_regs *regs, ulong syscall)
 {
 	syscall_t fn;
 
+	pr_err("SYSCALL: %lu", syscall);
+
 #ifdef CONFIG_COMPAT
 	if ((regs->status & SR_UXL) == SR_UXL_32)
 		fn = compat_sys_call_table[syscall];
