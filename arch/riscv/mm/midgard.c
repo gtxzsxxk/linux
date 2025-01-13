@@ -189,8 +189,8 @@ void midgard_full_sanitize_and_update_csr(struct midgard_node **root) {
 	csr_write(CSR_SAMT, __pa_symbol(root_cp));
 }
 
-uintptr_t midgard_insert_vma(struct midgard_node **root, uintptr_t va_base, phys_addr_t size, uint8_t prot, bool update_csr) {
-	uintptr_t midgard_addr = 0xffaf100000000000 | ((midgard_addr_counter++) << (8 * 4)) | (va_base & 0xfff);
+uintptr_t midgard_insert_specified_vma(struct midgard_node **root, uintptr_t ma_base, uintptr_t va_base, phys_addr_t size, uint8_t prot, bool update_csr) {
+	uintptr_t midgard_addr = ma_base;
 	int pos = -1;
 
 	struct midgard_node *lookup = midgard_search(*root, va_base, &pos);
@@ -224,6 +224,12 @@ uintptr_t midgard_insert_vma(struct midgard_node **root, uintptr_t va_base, phys
 	}
 
 	return midgard_addr;
+}
+
+uintptr_t midgard_insert_vma(struct midgard_node **root, uintptr_t va_base, phys_addr_t size, uint8_t prot, bool update_csr) {
+	uintptr_t midgard_addr = 0xffaf100000000000 | ((midgard_addr_counter++) << (8 * 4)) | (va_base & 0xfff);
+
+	return midgard_insert_specified_vma(root, midgard_addr, va_base, size, prot, update_csr);
 }
 
 /* 打印指定数量的缩进 */

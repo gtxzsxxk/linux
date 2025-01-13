@@ -4,6 +4,7 @@
  * VMA-specific functions.
  */
 
+#include "asm/midgard.h"
 #include "vma_internal.h"
 #include "vma.h"
 
@@ -384,11 +385,30 @@ static int __split_vma(struct vma_iterator *vmi, struct vm_area_struct *vma,
 	if (!new)
 		return -ENOMEM;
 
+	int m_pos;
+	uint64_t midgard_end = vma->vm_end;
+	uint64_t midgard_addr_offset = 0;
+	struct midgard_node *look_up = midgard_search(vma->vm_mm->midgard_root, addr, &m_pos);
+	if (!(m_pos == -1 || !look_up)) {
+		midgard_end = look_up->keys[m_pos].bound;
+		midgard_addr_offset = look_up->keys[m_pos].offset;
+		if (new_below) {
+			look_up->keys[m_pos].base = addr;
+		} else {
+			look_up->keys[m_pos].bound = addr;
+		}
+		midgard_full_sanitize_and_update_csr(&vma->vm_mm->midgard_root);
+	} else {
+		panic("Cannot find midgard vma when splitting");
+	}
+
 	if (new_below) {
 		new->vm_end = addr;
+		midgard_insert_specified_vma(&vma->vm_mm->midgard_root, midgard_addr_offset + vma->vm_start, vma->vm_start, addr - vma->vm_start, 0, true);
 	} else {
 		new->vm_start = addr;
 		new->vm_pgoff += ((addr - vma->vm_start) >> PAGE_SHIFT);
+		midgard_insert_specified_vma(&vma->vm_mm->midgard_root, midgard_addr_offset + addr, addr, midgard_end - addr, 0, true);
 	}
 
 	err = -ENOMEM;

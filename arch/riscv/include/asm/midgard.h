@@ -32,6 +32,9 @@ void midgard_copy(struct midgard_node *src, struct midgard_node **dest);
 
 void midgard_full_sanitize_and_update_csr(struct midgard_node **root);
 
+/* 指定 midgard addr，而不是自动生成 */
+uintptr_t midgard_insert_specified_vma(struct midgard_node **root, uintptr_t ma_base, uintptr_t va_base, phys_addr_t size, uint8_t prot, bool update_csr);
+
 /* 返回输入虚拟地址的 midgard 地址，并且根据需要自动重填 SAMT */
 uintptr_t midgard_insert_vma(struct midgard_node **root, uintptr_t va_base, phys_addr_t size, uint8_t prot, bool update_csr);
 
