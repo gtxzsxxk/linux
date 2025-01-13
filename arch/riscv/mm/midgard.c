@@ -4,7 +4,7 @@
 #include <asm/pgtable.h>
 #include <linux/panic.h>
 
-#define MIDGARD_BRUTE_NODES		4096
+#define MIDGARD_BRUTE_NODES		8192
 /* 暂且暴力分配 */
 static struct midgard_node node_pool[MIDGARD_BRUTE_NODES] __page_aligned_bss;
 static int node_alloc_counter = 0;
