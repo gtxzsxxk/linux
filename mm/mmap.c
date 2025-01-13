@@ -1381,8 +1381,6 @@ int do_munmap(struct mm_struct *mm, unsigned long start, size_t len,
 	return do_vmi_munmap(&vmi, mm, start, len, uf, false);
 }
 
-extern uint64_t midgard_addr_counter;
-
 static unsigned long __mmap_region(struct file *file, unsigned long addr,
 		unsigned long len, vm_flags_t vm_flags, unsigned long pgoff,
 		struct list_head *uf)
@@ -1470,14 +1468,13 @@ static unsigned long __mmap_region(struct file *file, unsigned long addr,
 	struct midgard_node *look_up = midgard_search(mm->midgard_root, addr, &m_pos);
 	if (m_pos == -1 || !look_up) {
 		midgard_insert_vma(&mm->midgard_root, addr, len, 0, true);
-	} else {
-		look_up->keys[m_pos].base = addr;
-		look_up->keys[m_pos].bound = end;
-		uintptr_t midgard_addr = 0xffaf100000000000 | ((midgard_addr_counter++) << (8 * 4)) | (addr & 0xfff);
-		look_up->keys[m_pos].offset = midgard_addr - addr;
-
-		midgard_full_sanitize_and_update_csr(&mm->midgard_root);
 	}
+	// else {
+	// 	look_up->keys[m_pos].base = addr;
+	// 	look_up->keys[m_pos].bound = end;
+
+	// 	midgard_full_sanitize_and_update_csr(&mm->midgard_root);
+	// }
 
 	vm_flags_init(vma, vm_flags);
 	vma->vm_page_prot = vm_get_page_prot(vm_flags);

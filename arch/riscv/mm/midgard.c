@@ -10,7 +10,7 @@ static struct midgard_node node_pool[MIDGARD_BRUTE_NODES] __page_aligned_bss;
 static int node_alloc_counter = 0;
 
 struct midgard_key *midgard_scratch = NULL;
-uint64_t midgard_addr_counter = 1;
+static uint64_t midgard_addr_counter = 1;
 
 static struct midgard_node *alloc_node(void) {
 	if(node_alloc_counter == MIDGARD_BRUTE_NODES) {
