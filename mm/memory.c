@@ -5823,6 +5823,8 @@ static vm_fault_t __handle_mm_fault(struct vm_area_struct *vma,
 	int m_pos;
 	struct midgard_node *look_up = midgard_search(mm->midgard_root, address, &m_pos);
 	if (m_pos == -1 || !look_up) {
+		midgard_print(mm->midgard_root);
+		look_up = midgard_search(mm->midgard_root, address, &m_pos);
 		panic("No such a VMA");
 	}
 	address += look_up->keys[m_pos].offset;
